@@ -1,45 +1,53 @@
-# WaterPump
+=========================================================
+                PROJECT: WATERPUMP 
+        Hệ Thống Điều Khiển Bơm Thông Minh
+=========================================================
 
-Một ứng dụng di động hiện đại được phát triển bằng Flutter.
+1. GIỚI THIỆU
+WaterPump là ứng dụng di động đa nền tảng (Android & iOS) được 
+phát triển bằng Flutter. Ứng dụng cho phép người dùng giám sát 
+và điều khiển hệ thống máy bơm nước từ xa thông qua giao diện 
+trực quan, giúp tối ưu hóa việc tưới tiêu và quản lý tài nguyên nước.
 
----------------------------------------------------------
+2. CÁC TÍNH NĂNG CHÍNH
+* Điều khiển Bật/Tắt máy bơm thời gian thực qua Internet/Bluetooth.
+* Chế độ tự động: Hẹn giờ tưới hoặc thiết lập điều kiện (độ ẩm, nhiệt độ).
+* Giám sát trạng thái: Hiển thị lưu lượng nước và tình trạng hoạt động.
+* Thông báo: Cảnh báo khi có sự cố (quá tải, mất nước, rò rỉ).
+* Giao diện Dark Mode/Light Mode hiện đại, dễ sử dụng.
 
-## 1. GIỚI THIỆU
-WaterPump là dự án ứng dụng đa nền tảng (Android & iOS). Dự án tập trung vào việc tối ưu hóa trải nghiệm người dùng và hiệu suất hoạt động.
-
-## 2. CÁC TÍNH NĂNG CHÍNH
-* Giao diện người dùng (UI) thân thiện, hiện đại.
-* Tích hợp các thư viện Flutter mới nhất.
-* Cấu trúc mã nguồn dễ bảo trì và mở rộng.
-
-## 3. YÊU CẦU HỆ THỐNG
+3. YÊU CẦU HỆ THỐNG
 * Flutter SDK: v3.0.0 trở lên.
 * Dart SDK: v2.17.0 trở lên.
-* Android Studio / VS Code đã cài đặt Flutter Plugin.
+* Thiết bị đầu cuối: ESP32/Arduino hoặc thiết bị IOT tương thích.
+* Công cụ: Android Studio hoặc VS Code (đã cài Flutter Plugin).
 
-## 4. HƯỚNG DẪN CÀI ĐẶT
+4. HƯỚNG DẪN CÀI ĐẶT
 
-Bước 1: Tải mã nguồn về máy:
-   git clone https://github.com/your-username/project1.git
+   Bước 1: Tải mã nguồn về máy:
+   git clone https://github.com/your-username/WaterPump.git
 
-Bước 2: Truy cập vào thư mục dự án:
-   cd project1
+   Bước 2: Truy cập vào thư mục dự án:
+   cd WaterPump
 
-Bước 3: Tải các thư viện cần thiết:
+   Bước 3: Tải các thư viện cần thiết:
    flutter pub get
 
-Bước 4: Chạy ứng dụng:
+   Bước 4: Chạy ứng dụng:
    flutter run
 
-## 5. CẤU TRÚC DỰ ÁN (SƠ LƯỢC)
-* lib/core: Chứa các cấu hình chung, hằng số và tiện ích.
-* lib/data: Quản lý dữ liệu, gọi API và các Model.
-* lib/presentation: Chứa toàn bộ giao diện (Screens và Widgets).
-* lib/main.dart: File thực thi chính của ứng dụng.
+5. CẤU TRÚC DỰ ÁN (SƠ LƯỢC)
+* lib/core: Cấu hình MQTT/Firebase, hằng số và các tiện ích kết nối.
+* lib/data: Quản lý dữ liệu, Repository, API kết nối thiết bị.
+* lib/logic: Quản lý trạng thái ứng dụng (Provider/Bloc).
+* lib/presentation: Chứa màn hình điều khiển, biểu đồ và widget.
+* lib/main.dart: Điểm khởi chạy ứng dụng.
 
-## 6. TÀI LIỆU THAM KHẢO
+6. TÀI LIỆU THAM KHẢO
 * Tài liệu Flutter chính thức: https://docs.flutter.dev/
+* Tài liệu giao thức kết nối (MQTT/HTTP): https://mqtt.org/
 * Flutter Cookbook: https://docs.flutter.dev/cookbook
 
 ---------------------------------------------------------
 © 2026 Project by HungThach. All rights reserved.
+=========================================================
