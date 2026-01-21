@@ -1,11 +1,11 @@
-# Project của Hưng
+# WaterPump
 
 Một ứng dụng di động hiện đại được phát triển bằng Flutter.
 
 ---------------------------------------------------------
 
 ## 1. GIỚI THIỆU
-Project của Hưng là dự án ứng dụng đa nền tảng (Android & iOS). Dự án tập trung vào việc tối ưu hóa trải nghiệm người dùng và hiệu suất hoạt động.
+WaterPump là dự án ứng dụng đa nền tảng (Android & iOS). Dự án tập trung vào việc tối ưu hóa trải nghiệm người dùng và hiệu suất hoạt động.
 
 ## 2. CÁC TÍNH NĂNG CHÍNH
 * Giao diện người dùng (UI) thân thiện, hiện đại.
