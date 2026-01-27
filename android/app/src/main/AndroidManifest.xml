@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for HTTP requests to ESP32 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
     <application
         android:label="project1"
         android:name="${applicationName}"

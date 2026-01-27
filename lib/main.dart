@@ -11,24 +11,27 @@ void main() {
 
 // --- MODEL DỮ LIỆU ---
 class ESPData {
-  final double humidity;
+  final double soil;
   final bool pumpOn;
   final bool autoMode;
-  final double threshold;
+  final int soilLow;
+  final int soilHigh;
 
   ESPData({
-    required this.humidity,
+    required this.soil,
     required this.pumpOn,
     required this.autoMode,
-    required this.threshold,
+    required this.soilLow,
+    required this.soilHigh,
   });
 
   factory ESPData.fromJson(Map<String, dynamic> json) {
     return ESPData(
-      humidity: (json['humidity'] ?? 0).toDouble(),
+      soil: (json['soil'] ?? 0).toDouble(),
       pumpOn: json['pumpOn'] ?? false,
-      autoMode: json['autoMode'] ?? true,
-      threshold: (json['threshold'] ?? 40).toDouble(),
+      autoMode: json['auto'] ?? true,
+      soilLow: json['low'] ?? 30,
+      soilHigh: json['high'] ?? 60,
     );
   }
 }
@@ -39,11 +42,11 @@ class SmartWaterPumpApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Smart Water Pump',
+      title: 'Smart Irrigation',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: Colors.green,
           brightness: Brightness.light,
         ),
       ),
@@ -62,11 +65,12 @@ class WaterPumpControlPage extends StatefulWidget {
 
 class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
   // --- CẤU HÌNH ---
-  String _ipAddress = "192.168.1.100";
+  String _ipAddress = "192.168.4.1";
   
   // Trạng thái dữ liệu
-  double _humidity = 0;
-  double _threshold = 40;
+  double _soilMoisture = 0;
+  int _soilLow = 30;
+  int _soilHigh = 60;
   bool _pumpOn = false;
   bool _autoMode = true;
   
@@ -76,6 +80,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
   
   // Timer tự động cập nhật
   Timer? _timer;
+  Timer? _debounceTimer;  // Timer for slider debounce
   
   // Controllers
   late TextEditingController _ipController;
@@ -93,6 +98,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _debounceTimer?.cancel();
     _ipController.dispose();
     _ipFocusNode.dispose();
     super.dispose();
@@ -111,7 +117,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
   // Load IP đã lưu từ SharedPreferences
   Future<void> _loadSavedIP() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedIP = prefs.getString('saved_ip') ?? "192.168.1.100";
+    final savedIP = prefs.getString('saved_ip') ?? "192.168.4.1";
     setState(() {
       _ipAddress = savedIP;
       _ipController.text = savedIP;
@@ -148,10 +154,11 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
         
         setState(() {
           _isConnected = true;
-          _humidity = espData.humidity;
-          if (_autoMode) {
-            _pumpOn = espData.pumpOn;
-          }
+          _soilMoisture = espData.soil;
+          _pumpOn = espData.pumpOn;  // Always sync pump status
+          _autoMode = espData.autoMode;  // Always sync mode
+          _soilLow = espData.soilLow;  // Always sync low threshold
+          _soilHigh = espData.soilHigh;  // Always sync high threshold
           _isChecking = false;
         });
       } else {
@@ -171,16 +178,70 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
     });
   }
 
-  // Gửi lệnh điều khiển
+  // Gửi lệnh cập nhật threshold với debounce (chỉ dùng cho slider)
+  void _sendControlWithDebounce() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _sendThresholdToESP();
+    });
+  }
+
+  // Gửi lệnh điều khiển (auto mode và pump control)
   Future<void> _sendControlToESP() async {
     if (!_isConnected) return;
 
-    final urlString = "http://$_ipAddress/set?auto=$_autoMode&threshold=${_threshold.toInt()}&pump=$_pumpOn";
+    final urlString = "http://$_ipAddress/control";
+    final body = json.encode({
+      'auto': _autoMode,
+      if (!_autoMode) 'pumpOn': _pumpOn,
+    });
     
     try {
-      await http.get(Uri.parse(urlString)).timeout(const Duration(seconds: 2));
+      final response = await http.post(
+        Uri.parse(urlString),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 2));
+      
+      if (response.statusCode == 200) {
+        // Fetch lại data sau khi set thành công để đảm bảo đồng bộ
+        await Future.delayed(const Duration(milliseconds: 300));
+        _fetchDataFromESP();
+      } else {
+        // Fetch lại để khôi phục state đúng từ ESP
+        _fetchDataFromESP();
+      }
     } catch (e) {
-      // Có thể hiện thông báo lỗi nếu cần
+      // Nếu gửi thất bại, fetch lại để đồng bộ state
+      _fetchDataFromESP();
+    }
+  }
+
+  // Gửi lệnh cập nhật ngưỡng (low/high threshold)
+  Future<void> _sendThresholdToESP() async {
+    if (!_isConnected) return;
+
+    final urlString = "http://$_ipAddress/threshold";
+    final body = json.encode({
+      'low': _soilLow,
+      'high': _soilHigh,
+    });
+    
+    try {
+      final response = await http.post(
+        Uri.parse(urlString),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 2));
+      
+      if (response.statusCode == 200) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        _fetchDataFromESP();
+      } else {
+        _fetchDataFromESP();
+      }
+    } catch (e) {
+      _fetchDataFromESP();
     }
   }
 
@@ -197,8 +258,8 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.blue.withOpacity(0.2),
               Colors.green.withOpacity(0.2),
+              Colors.lightGreen.withOpacity(0.2),
             ],
           ),
         ),
@@ -212,10 +273,10 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
                 
                 // Tiêu đề
                 Text(
-                  'Smart Water Pump',
+                  '🌱 Smart Irrigation',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
+                    color: Colors.green.shade700,
                   ),
                 ),
                 
@@ -226,8 +287,8 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
                 
                 const SizedBox(height: 30),
                 
-                // Vòng tròn độ ẩm
-                _buildHumidityCircle(),
+                // Vòng tròn độ ẩm đất
+                _buildSoilMoistureCircle(),
                 
                 const SizedBox(height: 30),
                 
@@ -280,7 +341,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
                   controller: _ipController,
                   focusNode: _ipFocusNode,
                   decoration: const InputDecoration(
-                    hintText: 'Ex: 192.168.1.100',
+                    hintText: 'Ex: 192.168.4.1',
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
@@ -333,7 +394,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
     );
   }
 
-  Widget _buildHumidityCircle() {
+  Widget _buildSoilMoistureCircle() {
     return Container(
       width: 220,
       height: 220,
@@ -347,7 +408,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
             child: CustomPaint(
               painter: CircularProgressPainter(
                 progress: 1.0,
-                color: Colors.blue.withOpacity(0.2),
+                color: Colors.green.withOpacity(0.2),
                 strokeWidth: 18,
               ),
             ),
@@ -358,8 +419,8 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
             height: 200,
             child: CustomPaint(
               painter: CircularProgressPainter(
-                progress: _humidity / 100,
-                color: _isConnected ? Colors.blue : Colors.grey,
+                progress: _soilMoisture / 100,
+                color: _isConnected ? Colors.green : Colors.grey,
                 strokeWidth: 18,
                 useGradient: _isConnected,
               ),
@@ -372,11 +433,11 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
               Icon(
                 Icons.water_drop,
                 size: 36,
-                color: _isConnected ? Colors.blue : Colors.grey,
+                color: _isConnected ? Colors.green : Colors.grey,
               ),
               const SizedBox(height: 8),
               Text(
-                _isConnected ? '${_humidity.toInt()}%' : '--',
+                _isConnected ? '${_soilMoisture.toInt()}%' : '--',
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
@@ -384,7 +445,7 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
                 ),
               ),
               Text(
-                'Humidity',
+                'Soil Moisture',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 16,
@@ -482,9 +543,9 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
           
           const SizedBox(height: 20),
           
-          // Threshold slider
+          // Low Threshold slider
           Text(
-            'Threshold: ${_threshold.toInt()}%',
+            'Low Threshold: $_soilLow%',
             style: TextStyle(
               color: Colors.grey.shade600,
               fontSize: 16,
@@ -492,16 +553,48 @@ class _WaterPumpControlPageState extends State<WaterPumpControlPage> {
           ),
           
           Slider(
-            value: _threshold,
-            min: 20,
-            max: 80,
-            divisions: 60,
+            value: _soilLow.toDouble(),
+            min: 0,
+            max: 100,
+            divisions: 100,
             onChanged: _isConnected
                 ? (double value) {
                     setState(() {
-                      _threshold = value;
+                      _soilLow = value.toInt();
+                      if (_soilLow >= _soilHigh) {
+                        _soilHigh = _soilLow + 1;
+                      }
                     });
-                    _sendControlToESP();
+                    _sendControlWithDebounce();  // Use debounce to avoid spam
+                  }
+                : null,
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // High Threshold slider
+          Text(
+            'High Threshold: $_soilHigh%',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 16,
+            ),
+          ),
+          
+          Slider(
+            value: _soilHigh.toDouble(),
+            min: 0,
+            max: 100,
+            divisions: 100,
+            onChanged: _isConnected
+                ? (double value) {
+                    setState(() {
+                      _soilHigh = value.toInt();
+                      if (_soilHigh <= _soilLow) {
+                        _soilLow = _soilHigh - 1;
+                      }
+                    });
+                    _sendControlWithDebounce();  // Use debounce to avoid spam
                   }
                 : null,
           ),
@@ -571,9 +664,9 @@ class CircularProgressPainter extends CustomPainter {
     if (useGradient && progress > 0) {
       final sweepGradient = SweepGradient(
         colors: [
-          Colors.blue,
-          Colors.cyan,
           Colors.green,
+          Colors.lightGreen,
+          Colors.greenAccent,
         ],
         startAngle: -math.pi / 2,
         endAngle: -math.pi / 2 + (2 * math.pi * progress),
